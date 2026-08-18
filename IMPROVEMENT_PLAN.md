@@ -1,0 +1,12 @@
+# Completion plan
+
+1. Establish upstream provenance first. The 14 KB README, Mux player/record/upload components, moderation screenshots, tests and detailed recording UI strongly suggest a substantial video-streaming starter/example; identify exact source/version and isolate authored modifications.
+2. Map the verified product flow from code: camera/screen selection, recording, upload/progress, playback, reporting/moderation and any webhook/API processing. Do not claim live streaming, conferencing or AI moderation unless the relevant backend path is present and configured.
+3. Audit `.env.local.example` and `.env.test` by integration. Classify Mux/provider credentials, webhook secrets and public IDs; ensure production secrets are server-only and test values are non-sensitive fixtures.
+4. Review camera/microphone/screen-capture consent and lifecycle. Media capture must begin only after explicit action, show clear active state, handle denied/revoked/missing devices and release all tracks when recording ends or navigation occurs.
+5. Harden recording/upload handling: MIME/type and size validation, interrupted uploads, retry/idempotency, duplicate submissions, provider failures and cleanup of abandoned local/object URLs. Do not trust client-reported media metadata.
+6. Verify webhook/report/moderation flows server-side: signature validation, replay/idempotency, bounded payloads and controlled error handling. If screenshots describe moderation that code no longer implements, mark them historical or remove the claim.
+7. Define media privacy/retention semantics: what is uploaded, who can access playback IDs/URLs, how long recordings persist and how users can report/delete content. Avoid public playback defaults for content intended to be private.
+8. Accessibility/performance pass for recorder/player controls: keyboard operation, labels, focus, captions/transcript hooks, audio-only fallback, reduced motion, responsive video and avoidance of unnecessary heavy player code before interaction.
+9. Expand existing tests to cover permission failures, start/stop cleanup, upload errors, playback unavailable states and webhook validation with mocked provider calls; CI runs lint/typecheck/tests/build without live service credentials.
+10. Rewrite README as verified video recording/upload/playback prototype documentation with upstream attribution, exact Mux/provider architecture, permission/privacy model, setup, tested flows, screenshots and explicit limitations.
