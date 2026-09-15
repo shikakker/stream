@@ -1,15 +1,7 @@
-import got from './got-client';
 import { ModerationScores } from '../types';
 import { getThumbnailUrls } from './moderation-utils';
 
-const client = got.extend({
-  prefixUrl: 'https://api.thehive.ai/api/v2',
-  headers: {
-    accept: 'application/json',
-    authorization: `token ${process.env.HIVE_AI_KEY}`
-  },
-});
-
+const HIVE_ENDPOINT = 'https://api.thehive.ai/api/v2/task/sync';
 const isEnabled = () => !!(process.env.HIVE_AI_KEY?.length);
 
 type HiveClass = {
@@ -37,26 +29,41 @@ async function fetchOutputForUrl (url: string): Promise<HiveOutput|null> {
   let result: HiveResult;
 
   try {
-    result = (await client.post('task/sync', { json: { url }, responseType: 'json' })).body as HiveResult;
-  } catch (e) {
-    console.error('Error with client.post in hive-moderation', e);
+    const response = await fetch(HIVE_ENDPOINT, {
+      method: 'POST',
+      headers: {
+        accept: 'application/json',
+        'content-type': 'application/json',
+        authorization: `token ${process.env.HIVE_AI_KEY}`,
+      },
+      body: JSON.stringify({ url }),
+    });
+
+    if (!response.ok) {
+      console.error('Hive moderation request failed', response.status); // eslint-disable-line no-console
+      return null;
+    }
+
+    result = await response.json() as HiveResult;
+  } catch (error) {
+    console.error('Error requesting Hive moderation', error); // eslint-disable-line no-console
     return null;
   }
 
   if (result.code !== 200) {
-    console.error('Error detecting scores for hive', result.code, url);
+    console.error('Error detecting scores for Hive', result.code); // eslint-disable-line no-console
     return null;
   }
 
-  if (!(result.status[0].response.output)) {
-    console.error('Got a 200, but no status.response.output', result.status, url);
+  if (!(result.status?.[0]?.response?.output?.length)) {
+    console.error('Hive response did not include moderation output'); // eslint-disable-line no-console
     return null;
   }
 
   return result.status[0].response.output[0];
 }
 
-function roundedScore (score: number) {
+function roundedScore (score: number): number {
   return +score.toFixed(6);
 }
 
@@ -66,41 +73,36 @@ export function mergeAnnotations (outputs: HiveOutput[]): ModerationScores {
   const violentScores: number[] = [];
 
   outputs.forEach((output) => {
-    const nsfwScore = (output.classes.find((cls => cls.class === "general_nsfw")) as HiveClass).score;
+    const nsfwScore = output.classes.find((cls => cls.class === 'general_nsfw'))?.score;
     if (nsfwScore) {
       adultScores.push(roundedScore(nsfwScore));
     }
 
-    const suggestiveScore = (output.classes.find((cls => cls.class === "general_suggestive")) as HiveClass).score;
+    const suggestiveScore = output.classes.find((cls => cls.class === 'general_suggestive'))?.score;
     if (suggestiveScore) {
       suggestiveScores.push(roundedScore(suggestiveScore));
     }
 
-    const bloodyScore = (output.classes.find((cls => cls.class === "very_bloody")) as HiveClass).score;
+    const bloodyScore = output.classes.find((cls => cls.class === 'very_bloody'))?.score;
     if (bloodyScore) {
       violentScores.push(roundedScore(bloodyScore));
     }
   });
 
-  const combined: ModerationScores = {
+  return {
     adult: adultScores.length ? Math.max(...adultScores) : undefined,
     suggestive: suggestiveScores.length ? Math.max(...suggestiveScores) : undefined,
     violent: violentScores.length ? Math.max(...violentScores) : undefined,
   };
-
-  return combined;
 }
 
 export async function getScores ({ playbackId, duration }: { playbackId: string, duration: number }): Promise<ModerationScores|undefined> {
   if (!isEnabled()) {
-    console.log('Skipping moderation-hive, no key enabled');
+    console.log('Skipping moderation-hive, no key enabled'); // eslint-disable-line no-console
     return undefined;
   }
   const files = getThumbnailUrls({ playbackId, duration });
   const outputs = await Promise.all(files.map((file) => fetchOutputForUrl(file)));
-  /*
-   * Filter out nulls to make typescript happy
-   */
   const outputsFiltered = outputs.filter(a => !!a) as HiveOutput[];
 
   return mergeAnnotations(outputsFiltered);

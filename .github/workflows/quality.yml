@@ -1,0 +1,25 @@
+name: Quality
+
+on:
+  push:
+    branches: [portfolio-improvements-2026-08]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: yarn
+      - run: node --test tests/*.test.mjs
+      - run: yarn install --frozen-lockfile
+      - run: yarn tsc --noEmit
+      - run: yarn build
+      - run: node scripts/check-production-audit.mjs

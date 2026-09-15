@@ -2,6 +2,10 @@
   "name": "with-mux-video",
   "version": "0.1.0",
   "license": "MIT",
+  "private": true,
+  "engines": {
+    "node": "22.x"
+  },
   "scripts": {
     "dev": "next dev",
     "build": "yarn lint && next build",
@@ -12,23 +16,22 @@
     "tsc": "tsc"
   },
   "dependencies": {
-    "@google-cloud/vision": "^2.3.2",
-    "@mux/mux-node": "^3.2",
+    "@google-cloud/vision": "6.1.0",
+    "@mux/mux-node": "15.1.0",
     "@mux/mux-player-react": "^0.1.0-beta.24",
     "@mux/mux-video-react": "^0.5.1",
     "@mux/upchunk": "^2.3",
     "@types/probe-image-size": "^7.0.0",
     "copy-to-clipboard": "^3.3.1",
-    "got": "^11.8.3",
     "hls.js": "^1.1.5",
-    "js-cookie": "^3.0.1",
+    "js-cookie": "3.0.8",
     "micro": "9.3.5-canary.3",
     "mux-embed": "^4.7.0",
-    "next": "^12.0.10",
+    "next": "15.5.25",
     "plyr": "^3.6.3",
     "probe-image-size": "^7.2.1",
-    "react": "^17.0.2",
-    "react-dom": "^17.0.2",
+    "react": "18.2.0",
+    "react-dom": "18.2.0",
     "react-dropzone": "^11.0.2",
     "swr": "^0.2.0"
   },
@@ -37,26 +40,30 @@
     "@types/hls.js": "^0.13.1",
     "@types/jest": "^27.4.1",
     "@types/js-cookie": "^3.0.1",
-    "@types/react": "^16.9.49",
+    "@types/node": "22.18.6",
+    "@types/react": "18.3.24",
+    "@types/react-dom": "18.3.7",
     "@types/webrtc": "^0.0.26",
-    "@typescript-eslint/eslint-plugin": "^4.1.1",
-    "@typescript-eslint/parser": "^4.1.1",
+    "@typescript-eslint/eslint-plugin": "8.70.0",
+    "@typescript-eslint/parser": "8.70.0",
     "babel-eslint": "^10.1.0",
     "babel-jest": "^27.5.1",
     "dotenv": "^8.2.0",
     "enzyme": "^3.11.0",
     "enzyme-adapter-react-16": "^1.15.4",
-    "eslint": "^7.9.0",
-    "eslint-plugin-jsx-a11y": "^6.3.1",
-    "eslint-plugin-react": "^7.20.6",
-    "eslint-plugin-react-hooks": "^4.1.2",
+    "eslint": "8.57.1",
+    "eslint-plugin-jsx-a11y": "^6.10.2",
+    "eslint-plugin-react": "^7.37.5",
+    "eslint-plugin-react-hooks": "^5.2.0",
     "jest": "^27.5.1",
     "next-secure-headers": "^2.0.0",
     "nock": "^13.0.11",
-    "typescript": "^4.0.2"
+    "typescript": "5.9.2"
   },
   "resolutions": {
     "normalize-url": "^4.5.1",
-    "node-fetch": "^2.6.7"
+    "node-fetch": "^2.6.7",
+    "postcss": "8.5.23",
+    "jws": "4.0.1"
   }
 }

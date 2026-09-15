@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import Plyr from 'plyr';
+import type PlyrType from 'plyr';
 import 'plyr/dist/plyr.css';
 import Hls from 'hls.js';
 import mux from 'mux-embed';
@@ -15,7 +15,6 @@ type Props = {
   playbackId: string
   poster: string
   aspectRatio?: number;
-  // isVertical: boolean;
   currentTime?: number
   onLoaded: () => void
   onError: (error: ErrorEvent) => void;
@@ -25,77 +24,90 @@ type Props = {
 const PlyrPlayer: React.FC<Props> = ({ playbackId, poster, currentTime, onLoaded, onError, forwardedRef, aspectRatio }) => {
   const videoRef = useRef<HTMLVideoElementWithPlyr>(null);
   const metaRef = useCombinedRefs(forwardedRef, videoRef);
-  const playerRef = useRef<Plyr | null>(null);
+  const playerRef = useRef<PlyrType | null>(null);
   const [playerInitTime] = useState(Date.now());
 
-  const videoError = (event: ErrorEvent) => onError(event);
-
   useEffect(() => {
+    if (typeof window === 'undefined') return;
+
     const video = videoRef.current;
+    if (!video) return;
+
     const src = `${getStreamBaseUrl()}/${playbackId}.m3u8`;
-    let hls: Hls | null;
-    hls = null;
-    if (video) {
-      video.addEventListener('error', videoError);
-      playerRef.current = new Plyr(video, {
-        previewThumbnails: { enabled: true, src: `${getImageBaseUrl()}/${playbackId}/storyboard.vtt` },
-        storage: { enabled: false },
-        fullscreen: {
-          iosNative: true
-        },
-        captions: { active: true, language: 'auto', update: true }
-      });
+    let hls: Hls | null = null;
+    let cancelled = false;
 
-      playerRef.current.on('ready', () => onLoaded());
+    const videoError = (event: ErrorEvent) => onError(event);
+    video.addEventListener('error', videoError);
 
-      if (video.canPlayType('application/vnd.apple.mpegurl')) {
-        // This will run in safari, where HLS is supported natively
-        video.src = src;
-      } else if (Hls.isSupported()) {
-        // This will run in all other modern browsers
-        hls = new Hls();
-        hls.loadSource(src);
-        hls.attachMedia(video);
-        hls.on(Hls.Events.ERROR, function (event, data) {
-          if (data.fatal) {
-            logger.error('hls.js fatal error');
-            videoError(new ErrorEvent('HLS.js fatal error'));
-          }
-        });
-      } else {
-        console.error( // eslint-disable-line no-console
-          'This is an old browser that does not support MSE https://developer.mozilla.org/en-US/docs/Web/API/Media_Source_Extensions_API',
-        );
-      }
+    const initialize = async () => {
+      try {
+        const { default: Plyr } = await import('plyr');
+        if (cancelled) return;
 
-      if (typeof mux !== 'undefined' && process.env.NEXT_PUBLIC_MUX_ENV_KEY) {
-        mux.monitor(video, {
-          hlsjs: hls,
-          Hls,
-          beaconCollectionDomain: MUX_DATA_CUSTOM_DOMAIN,
-          data: {
-            env_key: process.env.NEXT_PUBLIC_MUX_ENV_KEY,
-            player_name: 'Plyr',
-            video_id: playbackId,
-            video_title: playbackId,
-            player_init_time: playerInitTime,
+        playerRef.current = new Plyr(video, {
+          previewThumbnails: { enabled: true, src: `${getImageBaseUrl()}/${playbackId}/storyboard.vtt` },
+          storage: { enabled: false },
+          fullscreen: {
+            iosNative: true
           },
+          captions: { active: true, language: 'auto', update: true }
         });
+
+        playerRef.current.on('ready', () => onLoaded());
+
+        if (video.canPlayType('application/vnd.apple.mpegurl')) {
+          video.src = src;
+        } else if (Hls.isSupported()) {
+          hls = new Hls();
+          hls.loadSource(src);
+          hls.attachMedia(video);
+          hls.on(Hls.Events.ERROR, function (_event, data) {
+            if (data.fatal) {
+              logger.error('hls.js fatal error');
+              videoError(new ErrorEvent('HLS.js fatal error'));
+            }
+          });
+        } else {
+          logger.error('Browser does not support HLS playback');
+        }
+
+        if (typeof mux !== 'undefined' && process.env.NEXT_PUBLIC_MUX_ENV_KEY) {
+          mux.monitor(video, {
+            hlsjs: hls,
+            Hls,
+            beaconCollectionDomain: MUX_DATA_CUSTOM_DOMAIN,
+            data: {
+              env_key: process.env.NEXT_PUBLIC_MUX_ENV_KEY,
+              player_name: 'Plyr',
+              video_id: playbackId,
+              video_title: playbackId,
+              player_init_time: playerInitTime,
+            },
+          });
+        }
+      } catch (error) {
+        logger.error('Unable to initialize video player');
+        if (!cancelled) {
+          videoError(new ErrorEvent('PLAYER_INITIALIZATION_FAILED'));
+        }
       }
-    }
+    };
+
+    void initialize();
 
     return () => {
-      if (video) {
-        video.removeEventListener('error', videoError);
-      }
+      cancelled = true;
+      video.removeEventListener('error', videoError);
       if (hls) {
         hls.destroy();
       }
       if (playerRef.current) {
         playerRef.current.destroy();
+        playerRef.current = null;
       }
     };
-  }, [playbackId, videoRef]);
+  }, [playbackId, onLoaded, onError, playerInitTime]);
 
   useEffect(() => {
     const video = videoRef.current;
@@ -141,8 +153,6 @@ const PlyrPlayer: React.FC<Props> = ({ playbackId, poster, currentTime, onLoaded
         @media only screen and (max-width: ${breakpoints.md}px) {
           :global(.plyr__volume, .plyr__menu, .plyr--pip-supported [data-plyr=pip]) {
             display: none;
-          }
-          video: {
           }
         }
       `}

@@ -14,6 +14,7 @@ module.exports = {
     console: true,
     process: true
   },
+  settings: { react: { version: 'detect' } },
   env: {
     jest: true,
   },
@@ -27,6 +28,9 @@ module.exports = {
   rules: {
     'react/prop-types': 'off',
     'react/react-in-jsx-scope': 'off',
+    'react/no-unknown-property': ['error', { ignore: ['jsx', 'global'] }],
+    '@typescript-eslint/no-unused-vars': ['error', { caughtErrors: 'none' }],
+    '@typescript-eslint/no-unused-expressions': ['error', { allowShortCircuit: true }],
     'jsx-a11y/anchor-is-valid': 'off',
     'jsx-a11y/media-has-caption': 'off',
     'import/prefer-default-export': 'off',
