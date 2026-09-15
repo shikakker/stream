@@ -17,10 +17,12 @@ test('Mux webhook rejects invalid signatures without exposing verifier internals
   assert.doesNotMatch(webhook, /json\(\{ message: \(e as Error\)\.message \}\)/);
 });
 
-test('Mux webhook parses JSON only after signature verification and handles malformed payloads', () => {
-  const verifyIndex = webhook.indexOf('verifyWebhookSignature');
-  const parseIndex = webhook.indexOf('JSON.parse(rawBody)');
-  assert.ok(verifyIndex >= 0 && parseIndex > verifyIndex);
+test('Mux webhook parses JSON only after the verified signature call and handles malformed payloads', () => {
+  const verifyCallIndex = webhook.indexOf(
+    'verifyWebhookSignature(rawBody, signature, webhookSignatureSecret)',
+  );
+  const parseIndex = webhook.indexOf("JSON.parse(rawBody.toString('utf8'))");
+  assert.ok(verifyCallIndex >= 0 && parseIndex > verifyCallIndex);
   assert.match(webhook, /INVALID_WEBHOOK_PAYLOAD/);
   assert.match(webhook, /status\(400\)/);
 });
