@@ -48,7 +48,7 @@ export default async function muxWebhookHandler (req: NextApiRequest, res: NextA
     return;
   }
 
-  let rawBody: Buffer;
+  let rawBody: string | Buffer;
   try {
     rawBody = await buffer(req, { limit: '2mb' });
   } catch (error) {
@@ -62,7 +62,7 @@ export default async function muxWebhookHandler (req: NextApiRequest, res: NextA
 
   try {
     verifyWebhookSignature(rawBody, signature, webhookSignatureSecret);
-  } catch (error) {
+  } catch {
     console.warn('Rejected Mux webhook signature'); // eslint-disable-line no-console
     res.status(401).json({
       code: 'WEBHOOK_UNAUTHORIZED',
@@ -71,9 +71,13 @@ export default async function muxWebhookHandler (req: NextApiRequest, res: NextA
     return;
   }
 
-  let jsonBody: any;
+  const rawBodyText = Buffer.isBuffer(rawBody)
+    ? rawBody.toString('utf8')
+    : rawBody;
+
+  let jsonBody: unknown;
   try {
-    jsonBody = JSON.parse(rawBody.toString('utf8'));
+    jsonBody = JSON.parse(rawBodyText);
   } catch {
     res.status(400).json({
       code: 'INVALID_WEBHOOK_PAYLOAD',
@@ -82,7 +86,11 @@ export default async function muxWebhookHandler (req: NextApiRequest, res: NextA
     return;
   }
 
-  const { data, type } = jsonBody || {};
+  const payload = jsonBody && typeof jsonBody === 'object'
+    ? jsonBody as { data?: any; type?: unknown }
+    : {};
+  const { data, type } = payload;
+
   if (type !== 'video.asset.ready') {
     res.status(200).json({ message: 'thanks Mux' });
     return;
