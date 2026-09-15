@@ -16,6 +16,8 @@ test('runtime uses maintained patched framework and provider SDK lines', () => {
   assert.equal(pkg.dependencies['@google-cloud/vision'], '6.1.0');
   assert.equal(pkg.dependencies['js-cookie'], '3.0.8');
   assert.equal(pkg.dependencies.got, undefined);
+  assert.equal(pkg.resolutions?.postcss, '8.5.23');
+  assert.equal(pkg.resolutions?.jws, '4.0.1');
 });
 
 test('Mux access is centralized on the current video API client', () => {

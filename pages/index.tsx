@@ -45,7 +45,7 @@ const Index: React.FC<Props> = () => {
           <div className="drop-notice">
             <h2>↓ Drag & drop a video file anywhere</h2>
           </div>
-          <label htmlFor="file-input">
+          <label htmlFor="file-input" aria-label="Upload a video file">
             <Button type="button" onClick={() => inputRef.current && inputRef.current.click()}>
               <span className="cta-text-mobile">Add a video</span>
               <span className="cta-text-desktop">Upload a video</span>
