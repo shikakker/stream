@@ -1,17 +1,25 @@
 import { NextApiRequest, NextApiResponse } from 'next';
-import Mux from '@mux/mux-node';
 import { buffer } from 'micro';
+import mux from '../../../lib/mux-client';
 import { sendSlackAssetReady, sendSlackAutoDeleteMessage } from '../../../lib/slack-notifier';
 import { getScores as moderationGoogle } from '../../../lib/moderation-google';
 import { getScores as moderationHive } from '../../../lib/moderation-hive';
 import { autoDelete } from '../../../lib/moderation-action';
+
+type AssetReadyData = {
+  id?: unknown;
+  duration?: unknown;
+  playback_ids?: Array<{ id?: unknown }>;
+};
 
 const verifyWebhookSignature = (
   rawBody: string | Buffer,
   signature: string,
   webhookSignatureSecret: string,
 ) => {
-  Mux.Webhooks.verifyHeader(rawBody, signature, webhookSignatureSecret);
+  const rawBodyText = Buffer.isBuffer(rawBody) ? rawBody.toString('utf8') : rawBody;
+  const headers = new Headers({ 'mux-signature': signature });
+  mux.webhooks.verifySignature(rawBodyText, headers, webhookSignatureSecret);
 };
 
 export const config = {
@@ -87,7 +95,7 @@ export default async function muxWebhookHandler (req: NextApiRequest, res: NextA
   }
 
   const payload = jsonBody && typeof jsonBody === 'object'
-    ? jsonBody as { data?: any; type?: unknown }
+    ? jsonBody as { data?: AssetReadyData; type?: unknown }
     : {};
   const { data, type } = payload;
 
