@@ -17,3 +17,9 @@ test('production audit gate blocks high and critical advisories', () => {
   assert.match(auditScript, /critical/);
   assert.match(auditScript, /process\.exitCode = 1/);
 });
+
+test('production audit diagnostics deduplicate advisories and print dependency paths', () => {
+  assert.match(auditScript, /new Map/);
+  assert.match(auditScript, /findings/);
+  assert.match(auditScript, /paths/);
+});
