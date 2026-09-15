@@ -1,8 +1,6 @@
 import { timingSafeEqual } from 'crypto';
 import { NextApiRequest, NextApiResponse } from 'next';
-import Mux from '@mux/mux-node';
-
-const { Video } = new Mux();
+import mux, { isMuxConfigured } from '../../../lib/mux-client';
 
 const isValidAssetId = (value: unknown): value is string => (
   typeof value === 'string' && /^[A-Za-z0-9_-]{1,160}$/.test(value)
@@ -27,10 +25,15 @@ export default async function assetHandler (req: NextApiRequest, res: NextApiRes
     return;
   }
 
+  if (!isMuxConfigured()) {
+    res.status(503).json({ error: 'Video provider is not configured' });
+    return;
+  }
+
   switch (method) {
     case 'GET':
       try {
-        const asset = await Video.Assets.get(assetId);
+        const asset = await mux.video.assets.retrieve(assetId);
         if (!(asset.playback_ids && asset.playback_ids[0])) {
           res.status(404).json({ error: 'Asset playback is not available' });
           return;
@@ -63,7 +66,7 @@ export default async function assetHandler (req: NextApiRequest, res: NextApiRes
       }
 
       try {
-        await Video.Assets.del(assetId);
+        await mux.video.assets.delete(assetId);
         res.status(200).json({ deleted: true, asset_id: assetId });
       } catch (error) {
         console.error('Request error', error); // eslint-disable-line no-console
