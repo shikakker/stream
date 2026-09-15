@@ -6,28 +6,14 @@ import { getScores as moderationGoogle } from '../../../lib/moderation-google';
 import { getScores as moderationHive } from '../../../lib/moderation-hive';
 import { autoDelete } from '../../../lib/moderation-action';
 
-const webhookSignatureSecret = process.env.MUX_WEBHOOK_SIGNATURE_SECRET;
-
-const verifyWebhookSignature = (rawBody: string | Buffer, req: NextApiRequest) => {
-  if (webhookSignatureSecret) {
-    // this will raise an error if signature is not valid
-    Mux.Webhooks.verifyHeader(rawBody, req.headers['mux-signature'] as string, webhookSignatureSecret);
-  } else {
-    console.log('Skipping webhook sig verification because no secret is configured'); // eslint-disable-line no-console
-  }
-  return true;
+const verifyWebhookSignature = (
+  rawBody: string | Buffer,
+  signature: string,
+  webhookSignatureSecret: string,
+) => {
+  Mux.Webhooks.verifyHeader(rawBody, signature, webhookSignatureSecret);
 };
 
-//
-// By default, NextJS will look at the content type and intelligently parse the body
-// This is great. Except that for webhooks we need access to the raw body if we want
-// to do signature verification
-//
-// By setting bodyParser: false here we have to extract the rawBody as a string
-// and use JSON.parse on it manually.
-//
-// If we weren't doing webhook signature verification then the code can get a bit simpler
-//
 export const config = {
   api: {
     bodyParser: false,
@@ -35,56 +21,114 @@ export const config = {
 };
 
 export default async function muxWebhookHandler (req: NextApiRequest, res: NextApiResponse): Promise<void> {
-  const { method } = req;
+  if (req.method !== 'POST') {
+    res.setHeader('Allow', ['POST']);
+    res.status(405).end(`Method ${req.method} Not Allowed`);
+    return;
+  }
 
-  switch (method) {
-    case 'POST': {
-      const rawBody = (await buffer(req)).toString();
-      try {
-        verifyWebhookSignature(rawBody, req);
-      } catch (e) {
-        console.error('Error verifyWebhookSignature - is the correct signature secret set?', e);
-        res.status(400).json({ message: (e as Error).message });
-        return;
-      }
-      const jsonBody = JSON.parse(rawBody);
-      const { data, type } = jsonBody;
+  res.setHeader('Cache-Control', 'private, no-store');
 
-      if (type !== 'video.asset.ready') {
-        res.json({ message: 'thanks Mux' });
-        return;
-      }
-      try {
-        const assetId = data.id;
-        const playbackId = data.playback_ids && data.playback_ids[0] && data.playback_ids[0].id;
-        const duration = data.duration;
+  const webhookSignatureSecret = process.env.MUX_WEBHOOK_SIGNATURE_SECRET;
+  if (!webhookSignatureSecret) {
+    res.status(503).json({
+      code: 'WEBHOOK_NOT_CONFIGURED',
+      message: 'Webhook verification is unavailable.',
+    });
+    return;
+  }
 
-        const googleScores = await moderationGoogle ({ playbackId, duration });
-        const hiveScores = await moderationHive ({ playbackId, duration });
+  const signatureHeader = req.headers['mux-signature'];
+  const signature = Array.isArray(signatureHeader) ? signatureHeader[0] : signatureHeader;
+  if (!signature) {
+    res.status(401).json({
+      code: 'WEBHOOK_UNAUTHORIZED',
+      message: 'Invalid webhook signature.',
+    });
+    return;
+  }
 
-        const didAutoDelete = hiveScores ? (await autoDelete({ assetId, playbackId, hiveScores })) : false;
+  let rawBody: Buffer;
+  try {
+    rawBody = await buffer(req, { limit: '2mb' });
+  } catch (error) {
+    console.warn('Rejected Mux webhook body', error); // eslint-disable-line no-console
+    res.status(413).json({
+      code: 'WEBHOOK_BODY_TOO_LARGE',
+      message: 'Webhook payload is too large.',
+    });
+    return;
+  }
 
-        if (didAutoDelete) {
-          await sendSlackAutoDeleteMessage({ assetId, duration, hiveScores });
-          res.json({ message: 'thanks Mux, I autodeleted this asset because it was bad' });
-        } else {
-          await sendSlackAssetReady({
-            assetId,
-            playbackId,
-            duration,
-            googleScores,
-            hiveScores,
-          });
-          res.json({ message: 'thanks Mux, I notified myself about this' });
-        }
-      } catch (e) {
-        res.statusCode = 500;
-        console.error('Request error', e); // eslint-disable-line no-console
-        res.json({ error: 'Error handling webhook' });
-      }
-      break;
-    } default:
-      res.setHeader('Allow', ['POST']);
-      res.status(405).end(`Method ${method} Not Allowed`);
+  try {
+    verifyWebhookSignature(rawBody, signature, webhookSignatureSecret);
+  } catch (error) {
+    console.warn('Rejected Mux webhook signature'); // eslint-disable-line no-console
+    res.status(401).json({
+      code: 'WEBHOOK_UNAUTHORIZED',
+      message: 'Invalid webhook signature.',
+    });
+    return;
+  }
+
+  let jsonBody: any;
+  try {
+    jsonBody = JSON.parse(rawBody.toString('utf8'));
+  } catch {
+    res.status(400).json({
+      code: 'INVALID_WEBHOOK_PAYLOAD',
+      message: 'Webhook payload must be valid JSON.',
+    });
+    return;
+  }
+
+  const { data, type } = jsonBody || {};
+  if (type !== 'video.asset.ready') {
+    res.status(200).json({ message: 'thanks Mux' });
+    return;
+  }
+
+  const assetId = typeof data?.id === 'string' ? data.id : '';
+  const playbackId =
+    Array.isArray(data?.playback_ids) && typeof data.playback_ids[0]?.id === 'string'
+      ? data.playback_ids[0].id
+      : '';
+  const duration = Number(data?.duration);
+
+  if (!assetId || !playbackId || !Number.isFinite(duration) || duration < 0) {
+    res.status(400).json({
+      code: 'INVALID_WEBHOOK_PAYLOAD',
+      message: 'Webhook asset payload is incomplete.',
+    });
+    return;
+  }
+
+  try {
+    const googleScores = await moderationGoogle({ playbackId, duration });
+    const hiveScores = await moderationHive({ playbackId, duration });
+
+    const didAutoDelete = hiveScores
+      ? await autoDelete({ assetId, playbackId, hiveScores })
+      : false;
+
+    if (didAutoDelete) {
+      await sendSlackAutoDeleteMessage({ assetId, duration, hiveScores });
+      res.status(200).json({ message: 'thanks Mux, I autodeleted this asset because it was bad' });
+    } else {
+      await sendSlackAssetReady({
+        assetId,
+        playbackId,
+        duration,
+        googleScores,
+        hiveScores,
+      });
+      res.status(200).json({ message: 'thanks Mux, I notified myself about this' });
+    }
+  } catch (error) {
+    console.error('Error handling verified Mux webhook', error); // eslint-disable-line no-console
+    res.status(500).json({
+      code: 'WEBHOOK_PROCESSING_FAILED',
+      message: 'Unable to process webhook.',
+    });
   }
 }
