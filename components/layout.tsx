@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { ReactNode, useMemo, useState } from 'react';
 import Head from 'next/head';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
@@ -35,6 +35,7 @@ const AsteriskLink: React.FC<AsteriskProps> = ({ spinning }) => {
 const FOOTER_HEIGHT = '100px';
 
 type Props = {
+  children?: ReactNode;
   title?: string;
   description?: string;
   metaTitle?: string;
