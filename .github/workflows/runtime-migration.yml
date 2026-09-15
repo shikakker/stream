@@ -20,7 +20,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - name: Fix React 18 lint compatibility and browser guard
+      - name: Apply guarded runtime migration
         run: |
           node <<'NODE'
           const fs = require('node:fs');
@@ -67,6 +67,25 @@ jobs:
           const babel = fs.readFileSync(babelPath, 'utf8');
           if (!/"next\/babel"/.test(babel)) throw new Error('Unexpected Babel configuration; refusing automatic removal');
           fs.unlinkSync(babelPath);
+
+          const pkgPath = 'package.json';
+          const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf8'));
+          pkg.resolutions = {
+            ...(pkg.resolutions || {}),
+            postcss: '8.5.23',
+            jws: '4.0.1'
+          };
+          fs.writeFileSync(pkgPath, `${JSON.stringify(pkg, null, 2)}\n`);
+
+          const testPath = 'tests/runtime-modernization.test.mjs';
+          let test = fs.readFileSync(testPath, 'utf8');
+          const testNeedle = "  assert.equal(pkg.dependencies.got, undefined);\n});";
+          if (!test.includes(testNeedle)) throw new Error('Expected runtime modernization test anchor not found');
+          test = test.replace(
+            testNeedle,
+            "  assert.equal(pkg.dependencies.got, undefined);\n  assert.equal(pkg.resolutions?.postcss, '8.5.23');\n  assert.equal(pkg.resolutions?.jws, '4.0.1');\n});"
+          );
+          fs.writeFileSync(testPath, test);
           NODE
       - name: Resolve maintained dependency graph
         run: yarn install --ignore-scripts --non-interactive
@@ -82,7 +101,7 @@ jobs:
         run: |
           git config user.name 'Egor Denisov'
           git config user.email 'designer.egor@ya.ru'
-          git add -A .babelrc .eslintrc.js components/record-page.tsx pages/index.tsx yarn.lock
+          git add -A .babelrc .eslintrc.js components/record-page.tsx pages/index.tsx package.json tests/runtime-modernization.test.mjs yarn.lock
           if git diff --cached --quiet; then
             echo 'No migration changes to commit'
             exit 0
