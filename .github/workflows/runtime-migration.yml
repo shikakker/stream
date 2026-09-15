@@ -1,0 +1,43 @@
+name: Runtime migration
+
+on:
+  push:
+    branches: [portfolio-improvements-2026-08]
+    paths:
+      - .github/workflows/runtime-migration.yml
+
+permissions:
+  contents: write
+
+jobs:
+  migrate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: portfolio-improvements-2026-08
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Resolve maintained dependency graph
+        run: yarn install --ignore-scripts --non-interactive
+      - name: Regression contracts
+        run: node --test tests/*.test.mjs
+      - name: TypeScript
+        run: yarn tsc --noEmit
+      - name: Production build
+        run: yarn build
+      - name: Production dependency audit
+        run: node scripts/check-production-audit.mjs
+      - name: Commit verified lockfile
+        run: |
+          git config user.name 'Egor Denisov'
+          git config user.email 'designer.egor@ya.ru'
+          git add yarn.lock
+          if git diff --cached --quiet; then
+            echo 'No lockfile changes to commit'
+            exit 0
+          fi
+          git commit -m 'build: commit verified stream runtime lockfile'
+          git push origin HEAD:portfolio-improvements-2026-08
