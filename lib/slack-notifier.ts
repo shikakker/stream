@@ -1,4 +1,3 @@
-import got from './got-client';
 import { HOST_URL } from '../constants';
 import { ModerationScores } from '../types';
 import { getImageBaseUrl } from './urlutils';
@@ -38,6 +37,20 @@ type BlockItem = {
     style: string,
     url: string,
   }]
+};
+
+const postSlack = async (payload: Record<string, unknown>): Promise<void> => {
+  if (!slackWebhook) return;
+
+  const response = await fetch(slackWebhook, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+
+  if (!response.ok) {
+    throw new Error(`Slack webhook returned ${response.status}`);
+  }
 };
 
 const baseBlocks = ({ playbackId, assetId, duration }: {playbackId: string, assetId: string, duration: number}): BlockItem[] => ([
@@ -142,12 +155,10 @@ export const sendSlackAssetReady = async ({ playbackId, assetId, duration, googl
     });
   }
 
-  await got.post(slackWebhook, {
-    json: {
-      text: `New video created on stream.new. <${HOST_URL}/v/${playbackId}|View on stream.new>`,
-      icon_emoji: 'see_no_evil',
-      blocks,
-    },
+  await postSlack({
+    text: `New video created on stream.new. <${HOST_URL}/v/${playbackId}|View on stream.new>`,
+    icon_emoji: 'see_no_evil',
+    blocks,
   });
   return null;
 };
@@ -158,11 +169,9 @@ export const sendSlackAutoDeleteMessage = async ({ assetId, duration, hiveScores
     return null;
   }
 
-  await got.post(slackWebhook, {
-    json: {
-      text: `Auto-deleted by moderator: ${assetId} duration: ${duration}. ${JSON.stringify(hiveScores)}`,
-      icon_emoji: 'female-police-officer',
-    },
+  await postSlack({
+    text: `Auto-deleted by moderator: ${assetId} duration: ${duration}. ${JSON.stringify(hiveScores)}`,
+    icon_emoji: 'female-police-officer',
   });
 
   return null;
@@ -174,11 +183,9 @@ export const sendAbuseReport = async ({ playbackId, reason, comment }: {playback
     return null;
   }
 
-  await got.post(slackWebhook, {
-    json: {
-      text: `Reported for abuse: ${reason}. ${comment}. ${playbackId} <${HOST_URL}/v/${playbackId}|View on stream.new>`,
-      icon_emoji: 'rotating_light',
-    },
+  await postSlack({
+    text: `Reported for abuse: ${reason}. ${comment}. ${playbackId} <${HOST_URL}/v/${playbackId}|View on stream.new>`,
+    icon_emoji: 'rotating_light',
   });
   return null;
 };
