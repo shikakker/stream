@@ -4,7 +4,7 @@ import { ModerationScores } from '../types';
 import { getImageBaseUrl } from './urlutils';
 
 const slackWebhook = process.env.SLACK_WEBHOOK_ASSET_READY;
-const moderatorPassword = process.env.SLACK_MODERATOR_PASSWORD;
+const hasModeratorAccess = Boolean(process.env.SLACK_MODERATOR_PASSWORD);
 
 type BlockItem = {
   type: string,
@@ -123,20 +123,20 @@ export const sendSlackAssetReady = async ({ playbackId, assetId, duration, googl
     });
   }
 
-  if (moderatorPassword) {
+  if (hasModeratorAccess) {
     blocks.push({
       type: 'section',
       text: {
         type: 'mrkdwn',
-        text: 'If this is bad, it can be deleted with 1 click:',
+        text: 'If this is bad, open the protected deletion page:',
       },
       accessory: {
         type: 'button',
         text: {
           type: 'plain_text',
-          text: 'DELETE',
+          text: 'REVIEW / DELETE',
         },
-        url: `${HOST_URL}/moderator/delete-asset?asset_id=${assetId}&slack_moderator_password=${moderatorPassword}`,
+        url: `${HOST_URL}/moderator/delete-asset?asset_id=${assetId}`,
         style: 'danger',
       },
     });
