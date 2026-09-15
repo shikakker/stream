@@ -21,7 +21,7 @@ test('Mux webhook parses JSON only after the verified signature call and handles
   const verifyCallIndex = webhook.indexOf(
     'verifyWebhookSignature(rawBody, signature, webhookSignatureSecret)',
   );
-  const parseIndex = webhook.indexOf("JSON.parse(rawBody.toString('utf8'))");
+  const parseIndex = webhook.indexOf('JSON.parse(rawBodyText)');
   assert.ok(verifyCallIndex >= 0 && parseIndex > verifyCallIndex);
   assert.match(webhook, /INVALID_WEBHOOK_PAYLOAD/);
   assert.match(webhook, /status\(400\)/);
