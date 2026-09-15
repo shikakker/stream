@@ -12,7 +12,7 @@ const Index: React.FC<Props> = () => {
   const [showUploadPage, setShowUploadPage] = useState(true);
   const inputRef = useRef<HTMLInputElement | null>(null);
 
-  const onDrop = useCallback((acceptedFiles) => {
+  const onDrop = useCallback((acceptedFiles: File[]) => {
     if (acceptedFiles && acceptedFiles[0]) {
       setFile(acceptedFiles[0]);
       setShowUploadPage(true);
