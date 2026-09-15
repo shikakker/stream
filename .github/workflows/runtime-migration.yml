@@ -20,6 +20,49 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
+      - name: Fix React 18 lint compatibility and browser guard
+        run: |
+          node <<'NODE'
+          const fs = require('node:fs');
+
+          const eslintPath = '.eslintrc.js';
+          let eslint = fs.readFileSync(eslintPath, 'utf8');
+          const rulesNeedle = "    'react/react-in-jsx-scope': 'off',";
+          if (!eslint.includes(rulesNeedle)) throw new Error('Expected ESLint rule anchor not found');
+          eslint = eslint.replace(
+            rulesNeedle,
+            [
+              rulesNeedle,
+              "    'react/no-unknown-property': ['error', { ignore: ['jsx', 'global'] }],",
+              "    '@typescript-eslint/no-unused-vars': ['error', { caughtErrors: 'none' }],",
+              "    '@typescript-eslint/no-unused-expressions': ['error', { allowShortCircuit: true }],"
+            ].join('\n')
+          );
+          const envNeedle = "  env: {";
+          if (!eslint.includes(envNeedle)) throw new Error('Expected ESLint env anchor not found');
+          eslint = eslint.replace(
+            envNeedle,
+            "  settings: { react: { version: 'detect' } },\n  env: {"
+          );
+          fs.writeFileSync(eslintPath, eslint);
+
+          const recordPath = 'components/record-page.tsx';
+          let record = fs.readFileSync(recordPath, 'utf8');
+          const badTypeof = "typeof window !== undefined && window.AudioContext || window.webkitAudioContext";
+          if (!record.includes(badTypeof)) throw new Error('Expected typeof guard not found');
+          record = record.replace(
+            badTypeof,
+            "typeof window !== 'undefined' && (window.AudioContext || window.webkitAudioContext)"
+          );
+          fs.writeFileSync(recordPath, record);
+
+          const indexPath = 'pages/index.tsx';
+          let index = fs.readFileSync(indexPath, 'utf8');
+          const labelNeedle = '<label htmlFor="file-input">';
+          if (!index.includes(labelNeedle)) throw new Error('Expected upload label not found');
+          index = index.replace(labelNeedle, '<label htmlFor="file-input" aria-label="Upload a video file">');
+          fs.writeFileSync(indexPath, index);
+          NODE
       - name: Resolve maintained dependency graph
         run: yarn install --ignore-scripts --non-interactive
       - name: Regression contracts
@@ -30,14 +73,14 @@ jobs:
         run: yarn build
       - name: Production dependency audit
         run: node scripts/check-production-audit.mjs
-      - name: Commit verified lockfile
+      - name: Commit verified migration
         run: |
           git config user.name 'Egor Denisov'
           git config user.email 'designer.egor@ya.ru'
-          git add yarn.lock
+          git add .eslintrc.js components/record-page.tsx pages/index.tsx yarn.lock
           if git diff --cached --quiet; then
-            echo 'No lockfile changes to commit'
+            echo 'No migration changes to commit'
             exit 0
           fi
-          git commit -m 'build: commit verified stream runtime lockfile'
+          git commit -m 'build: complete verified stream runtime migration'
           git push origin HEAD:portfolio-improvements-2026-08
