@@ -22,3 +22,4 @@ jobs:
       - run: yarn install --frozen-lockfile
       - run: yarn tsc --noEmit
       - run: yarn build
+      - run: node scripts/check-production-audit.mjs
